@@ -10,7 +10,7 @@ const router = express.Router();
 // @access  Public
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, bio, skills } = req.body;
+    const { name, email, password, bio, skills, github, linkedin } = req.body;
 
     // Check if user already exists
     let user = await User.findOne({ email });
@@ -24,7 +24,9 @@ router.post('/register', async (req, res) => {
       email,
       password,
       bio: bio || '',
-      skills: skills || []
+      skills: skills || [],
+      github: github || '',
+      linkedin: linkedin || ''
     });
 
     await user.save();
@@ -47,7 +49,10 @@ router.post('/register', async (req, res) => {
         name: user.name,
         email: user.email,
         bio: user.bio,
-        skills: user.skills
+        skills: user.skills,
+        github: user.github,
+        linkedin: user.linkedin,
+        profilePicture: user.profilePicture
       }
     });
   } catch (error) {
@@ -93,11 +98,42 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         bio: user.bio,
-        skills: user.skills
+        skills: user.skills,
+        github: user.github,
+        linkedin: user.linkedin,
+        profilePicture: user.profilePicture
       }
     });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   PUT /api/auth/profile
+// @desc    Update user profile
+// @access  Private
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const { name, bio, skills, github, linkedin, profilePicture } = req.body;
+
+    const updateFields = {};
+    if (name !== undefined) updateFields.name = name;
+    if (bio !== undefined) updateFields.bio = bio;
+    if (skills !== undefined) updateFields.skills = skills;
+    if (github !== undefined) updateFields.github = github;
+    if (linkedin !== undefined) updateFields.linkedin = linkedin;
+    if (profilePicture !== undefined) updateFields.profilePicture = profilePicture;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    res.json(user);
+  } catch (error) {
+    console.error('Error updating profile:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -110,6 +146,25 @@ router.get('/me', auth, async (req, res) => {
     res.json(req.user);
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/auth/user/:userId
+// @desc    Get user by ID (public profile)
+// @access  Public
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .select('-password -email -connections -pendingConnections -connectionRequests');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching user:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
